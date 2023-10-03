@@ -2,23 +2,29 @@ package org.example;
 
 import org.graalvm.nativeimage.hosted.Feature;
 import org.graalvm.nativeimage.hosted.RuntimeForeignAccess;
+import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Value;
 
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
 import java.util.Optional;
 import java.util.Scanner;
 import java.util.UUID;
+import java.util.concurrent.StructuredTaskScope;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
 // Press Shift twice to open the Search Everywhere dialog and type `show whitespaces`,
 // then press Enter. You can now see whitespace characters in your code.
-public class Main implements Feature {
+public class Main
+implements Feature
+{
 
 
     static {
         ClassLoader loader = Thread.currentThread().getContextClassLoader();
         System.load("/usr/lib/x86_64-linux-gnu/libc.so.6");
+
     }
 
     public static long SYS_OPEN = 2;
@@ -38,25 +44,44 @@ public class Main implements Feature {
 
 //        System.out.println("wait call start");
 //        new Scanner(System.in).next();
+        try (Context context = Context.newBuilder("js").option("js.ecmascript-version", "2020").build()) {
+            Value jsFunction = context.eval("js", "" +
+                    "(function myJavaScriptFunction(parameter) {         \n" +
+                    "    console.log('[JS] Hello, ' + parameter + '!');  \n" +
+                    "    return parameter.toUpperCase();                 \n" +
+                    "})                                                  \n");
+
+            Value result = jsFunction.execute("JavaScript");
+            if (result.isString()) {
+                System.out.println("[Java] result: " + result.asString());
+            } else {
+                System.out.println("[Java] unexpected result type returned from JavaScript");
+            }
+        }
 
 
-        ScopedValue.runWhere(SCOPED_VALUE, UUID.randomUUID().toString(), () -> {
-            System.out.println(SCOPED_VALUE.get());
-            ScopedValue.runWhere(SCOPED_VALUE, UUID.randomUUID().toString(), () -> {
-                System.out.println(SCOPED_VALUE.get());
+
+        try (StructuredTaskScope<String> taskScope = new StructuredTaskScope<>()) {
+            StructuredTaskScope.Subtask<String> subtask1 = taskScope.fork(() -> {
+                LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(2));
+                return UUID.randomUUID().toString();
             });
-            System.out.println(SCOPED_VALUE.get());
-        });
+            StructuredTaskScope.Subtask<String> subtask2 = taskScope.fork(() -> {
+                LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(3));
+                return UUID.randomUUID().toString();
+            });
+            StructuredTaskScope<String> joined = taskScope.join();
+
+            System.out.println(subtask1.get() + subtask2.get());
+        }catch (Throwable throwable) {
+            throwable.printStackTrace();
+        }
 
 
-        //这个run是可重入的，本质上就是wrap然后run continuation
-        Thread.startVirtualThread(() -> {
-            LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-            System.out.println("after park " + Thread.currentThread());
-            LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-            System.out.println("after park " + Thread.currentThread());
-        }).join();
 
+    }
+
+    public static void panamaCall() {
         try (Arena memorySession = Arena.ofConfined()) {
             MemorySegment pathName = memorySession.allocateUtf8String("/home/dreamlike/javaCode/code/temp.txt");
             MemorySegment content = memorySession.allocateUtf8String("write string java syscall \n");
@@ -101,11 +126,12 @@ public class Main implements Feature {
     }
 
     @Override
-    public void duringSetup(DuringSetupAccess access) {
+    public void duringSetup(Feature.DuringSetupAccess access) {
         System.out.println("start setup");
         RuntimeForeignAccess.registerForDowncall(FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
         RuntimeForeignAccess.registerForDowncall(FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT), Linker.Option.isTrivial());
     }
+
 }
 
 
