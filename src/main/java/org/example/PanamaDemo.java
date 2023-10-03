@@ -7,13 +7,11 @@ import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
 import java.util.Optional;
 import java.util.Scanner;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.LockSupport;
+
 
 // Press Shift twice to open the Search Everywhere dialog and type `show whitespaces`,
 // then press Enter. You can now see whitespace characters in your code.
-public class Main implements Feature {
+public class PanamaDemo {
 
 
     static {
@@ -31,32 +29,13 @@ public class Main implements Feature {
 
     public static final MethodHandle writeSyscall$MH = writeSyscall();
 
-    public static final ScopedValue<String> SCOPED_VALUE = ScopedValue.newInstance();
 
+//mvn clean package && native-image --features=org.example.PanamaFeature --enable-native-access=ALL-UNNAMED --no-fallback --enable-preview -O3 --gc=G1 -jar target/code-fat.jar
 
     public static void main(String[] args) throws Throwable {
 
 //        System.out.println("wait call start");
 //        new Scanner(System.in).next();
-
-
-        ScopedValue.runWhere(SCOPED_VALUE, UUID.randomUUID().toString(), () -> {
-            System.out.println(SCOPED_VALUE.get());
-            ScopedValue.runWhere(SCOPED_VALUE, UUID.randomUUID().toString(), () -> {
-                System.out.println(SCOPED_VALUE.get());
-            });
-            System.out.println(SCOPED_VALUE.get());
-        });
-
-
-        //这个run是可重入的，本质上就是wrap然后run continuation
-        Thread.startVirtualThread(() -> {
-            LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-            System.out.println("after park " + Thread.currentThread());
-            LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(1));
-            System.out.println("after park " + Thread.currentThread());
-        }).join();
-
         try (Arena memorySession = Arena.ofConfined()) {
             MemorySegment pathName = memorySession.allocateUtf8String("/home/dreamlike/javaCode/code/temp.txt");
             MemorySegment content = memorySession.allocateUtf8String("write string java syscall \n");
@@ -83,8 +62,7 @@ public class Main implements Feature {
         MemorySegment syscallAddress = memorySegment.get();
         return linker.downcallHandle(
                 syscallAddress,
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT), Linker.Option.isTrivial()
-        );
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
     }
 // -XX:MaxDirectMemorySize=1024k --enable-preview
     public static MethodHandle writeSyscall() {
@@ -95,17 +73,11 @@ public class Main implements Feature {
         MemorySegment syscallAddress = memorySegment.get();
         return linker.downcallHandle(
                 syscallAddress,
-                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
-                Linker.Option.isTrivial()
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
     }
 
-    @Override
-    public void duringSetup(DuringSetupAccess access) {
-        System.out.println("start setup");
-        RuntimeForeignAccess.registerForDowncall(FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
-        RuntimeForeignAccess.registerForDowncall(FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT), Linker.Option.isTrivial());
-    }
+
 }
 
 
