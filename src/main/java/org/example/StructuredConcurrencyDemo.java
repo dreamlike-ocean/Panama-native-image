@@ -8,13 +8,19 @@ public class StructuredConcurrencyDemo {
 
 
     public static void main(String[] args) {
-        ScopedValue.runWhere(level, "1", () -> {
+        ScopedValue.runWhere(level, "0", () -> {
             forkAndPrintLevel();
-            ScopedValue.runWhere(level, "2", () -> {
+            ScopedValue.runWhere(level, "1", () -> {
+                forkAndPrintLevel();
+                ScopedValue.runWhere(level, "2", () -> {
+                    forkAndPrintLevel();
+                });
                 forkAndPrintLevel();
             });
+
             forkAndPrintLevel();
         });
+
     }
 
 
